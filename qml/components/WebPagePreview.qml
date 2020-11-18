@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020 Sebastian J. Wolf
+    Copyright (C) 2020 Sebastian J. Wolf and other contributors
 
     This file is part of Fernschreiber.
 
@@ -16,7 +16,7 @@
     You should have received a copy of the GNU General Public License
     along with Fernschreiber. If not, see <http://www.gnu.org/licenses/>.
 */
-import QtQuick 2.5
+import QtQuick 2.6
 import QtGraphicalEffects 1.0
 import Sailfish.Silica 1.0
 import "../components"
@@ -27,8 +27,8 @@ Column {
 
     id: webPagePreviewColumn
 
-    property variant webPageData;
-    property variant pictureFileInformation;
+    property var webPageData;
+    property var pictureFileInformation;
     property bool hasImage: false;
 
     spacing: Theme.paddingSmall
@@ -124,6 +124,8 @@ Column {
             height: parent.height - Theme.paddingSmall
             anchors.centerIn: parent
 
+            sourceSize.width: width
+            sourceSize.height: height
             fillMode: Image.PreserveAspectCrop
             autoTransform: true
             asynchronous: true
@@ -138,20 +140,24 @@ Column {
             }
         }
 
-        Image {
-            id: imageLoadingBackgroundImage
-            source: "../../images/background-" + ( Theme.colorScheme ? "black" : "white" ) + "-small.png"
-            anchors {
-                centerIn: parent
-            }
-            width: parent.width - Theme.paddingMedium
-            height: parent.height - Theme.paddingMedium
+        BackgroundImage {
             visible: hasImage && singleImage.status !== Image.Ready
-            asynchronous: true
-
-            fillMode: Image.PreserveAspectFit
-            opacity: 0.15
         }
+    }
+
+    Text {
+        id: noPreviewAvailableText
+
+        width: parent.width
+        text: qsTr("Preview not supported for this link...")
+        font.pixelSize: Theme.fontSizeTiny
+        font.italic: true
+        color: Theme.secondaryColor
+        elide: Text.ElideRight
+        wrapMode: Text.Wrap
+        maximumLineCount: 1
+        textFormat: Text.StyledText
+        visible: !siteNameText.visible && !titleText.visible && !descriptionText.visible && !webPagePreviewImageItem.visible
     }
 
 }

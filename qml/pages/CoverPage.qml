@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020 Sebastian J. Wolf
+    Copyright (C) 2020 Sebastian J. Wolf and other contributors
 
     This file is part of Fernschreiber.
 
@@ -16,9 +16,11 @@
     You should have received a copy of the GNU General Public License
     along with Fernschreiber. If not, see <http://www.gnu.org/licenses/>.
 */
-import QtQuick 2.5
+import QtQuick 2.6
 import Sailfish.Silica 1.0
 import WerkWolf.Fernschreiber 1.0
+import "../components"
+import "../js/functions.js" as Functions
 
 CoverBackground {
 
@@ -64,7 +66,7 @@ CoverBackground {
     Component.onCompleted: {
         coverPage.authenticated = (tdLibWrapper.getAuthorizationState() === TelegramAPI.AuthorizationReady);
         coverPage.connectionState = tdLibWrapper.getConnectionState();
-        coverPage.unreadMessages = tdLibWrapper.getUnreadMessageInformation().unread_count;
+        coverPage.unreadMessages = tdLibWrapper.getUnreadMessageInformation().unread_count || 0;
         coverPage.unreadChats = tdLibWrapper.getUnreadChatInformation().unread_count;
         setUnreadInfoText();
     }
@@ -89,26 +91,24 @@ CoverBackground {
         }
     }
 
-    Image {
+    BackgroundImage {
         id: backgroundImage
-        source: "../../images/background-" + ( Theme.colorScheme ? "black" : "white" ) + ".png"
+        width: parent.height - Theme.paddingLarge
+        height: width
+        sourceDimension: width
         anchors {
             verticalCenter: parent.verticalCenter
-
+            centerIn: undefined
             bottom: parent.bottom
             bottomMargin: Theme.paddingMedium
-
             right: parent.right
             rightMargin: Theme.paddingMedium
         }
-
-        fillMode: Image.PreserveAspectFit
-        opacity: 0.15
     }
 
     Column {
         anchors.fill: parent
-        anchors.margins: Theme.horizontalPageMargin
+        anchors.margins: Theme.paddingLarge
         spacing: Theme.paddingMedium
         visible: coverPage.authenticated
         Row {
@@ -118,7 +118,7 @@ CoverBackground {
                 id: unreadMessagesCountText
                 font.pixelSize: Theme.fontSizeHuge
                 color: Theme.primaryColor
-                text: coverPage.unreadMessages
+                text: Functions.getShortenedCount(coverPage.unreadMessages)
             }
             Text {
                 id: unreadMessagesText
@@ -147,13 +147,13 @@ CoverBackground {
                 id: unreadChatsCountText
                 font.pixelSize: Theme.fontSizeHuge
                 color: Theme.primaryColor
-                text: coverPage.unreadChats
+                text: Functions.getShortenedCount(coverPage.unreadChats)
             }
             Text {
                 id: unreadChatsText
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.primaryColor
-                width: parent.width - unreadMessagesCountText.width - inText.width - ( 2 * Theme.paddingMedium )
+                width: parent.width - unreadChatsCountText.width - inText.width - ( 2 * Theme.paddingMedium )
                 wrapMode: Text.Wrap
                 anchors.verticalCenter: unreadChatsCountText.verticalCenter
             }

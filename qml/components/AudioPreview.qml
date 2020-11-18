@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020 Sebastian J. Wolf
+    Copyright (C) 2020 Sebastian J. Wolf and other contributors
 
     This file is part of Fernschreiber.
 
@@ -16,23 +16,26 @@
     You should have received a copy of the GNU General Public License
     along with Fernschreiber. If not, see <http://www.gnu.org/licenses/>.
 */
-import QtQuick 2.0
+import QtQuick 2.6
 import Sailfish.Silica 1.0
-import QtMultimedia 5.0
+import QtMultimedia 5.6
 import "../js/functions.js" as Functions
 
 Item {
     id: audioMessageComponent
 
-    property variant audioData;
+    property ListItem messageListItem
+    property var rawMessage: messageListItem.myMessage
+
+    property var audioData: ( rawMessage.content['@type'] === "messageVoiceNote" ) ?  rawMessage.content.voice_note : ( ( rawMessage.content['@type'] === "messageAudio" ) ? rawMessage.content.audio : "");
     property string audioUrl;
     property int previewFileId;
     property int audioFileId;
-    property bool onScreen;
+    property bool onScreen: messageListItem.page.status === PageStatus.Active
     property string audioType : "voiceNote";
 
     width: parent.width
-    height: parent.height
+    height: width / 2
 
     function getTimeString(rawSeconds) {
         var minutes = Math.floor( rawSeconds / 60 );
@@ -98,6 +101,10 @@ Item {
                         }
                     }
                 }
+                if (fileId === audioFileId) {
+                    downloadingProgressBar.maximumValue = fileInformation.size;
+                    downloadingProgressBar.value = fileInformation.local.downloaded_size;
+                }
             }
         }
     }
@@ -112,19 +119,8 @@ Item {
         visible: status === Image.Ready ? true : false
     }
 
-    Image {
-        id: imageLoadingBackgroundImage
-        source: "../../images/background-" + ( Theme.colorScheme ? "black" : "white" ) + "-small.png"
-        anchors {
-            centerIn: parent
-        }
-        width: parent.width - Theme.paddingSmall
-        height: parent.height - Theme.paddingSmall
+    BackgroundImage {
         visible: placeholderImage.status !== Image.Ready
-        asynchronous: true
-
-        fillMode: Image.PreserveAspectFit
-        opacity: 0.15
     }
 
     Rectangle {
@@ -136,36 +132,51 @@ Item {
         visible: playButton.visible
     }
 
-    Row {
+    Column {
         width: parent.width
-        height: parent.height
-        Item {
-            height: parent.height
+        height: downloadingProgressBar.height + audioControlRow.height
+        anchors.centerIn: parent
+        Row {
+            id: audioControlRow
             width: parent.width
-            Image {
-                id: playButton
-                anchors.centerIn: parent
-                width: Theme.iconSizeLarge
+            height: Theme.iconSizeLarge
+            Item {
                 height: Theme.iconSizeLarge
-                source: "image://theme/icon-l-play?white"
-                asynchronous: true
-                visible: placeholderImage.status === Image.Ready ? true : false
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: {
-                        handlePlay();
+                width: parent.width
+                Image {
+                    id: playButton
+                    anchors.centerIn: parent
+                    width: Theme.iconSizeLarge
+                    height: Theme.iconSizeLarge
+                    source: "image://theme/icon-l-play?white"
+                    asynchronous: true
+                    visible: placeholderImage.status === Image.Ready ? true : false
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+                            handlePlay();
+                        }
                     }
                 }
-            }
-            BusyIndicator {
-                id: audioDownloadBusyIndicator
-                running: false
-                visible: running
-                anchors.centerIn: parent
-                size: BusyIndicatorSize.Large
+                BusyIndicator {
+                    id: audioDownloadBusyIndicator
+                    running: false
+                    visible: running
+                    anchors.centerIn: parent
+                    size: BusyIndicatorSize.Large
+                }
             }
         }
+        ProgressBar {
+            id: downloadingProgressBar
+            minimumValue: 0
+            maximumValue: 100
+            value: 0
+            visible: audioDownloadBusyIndicator.visible
+            width: parent.width
+        }
     }
+
 
     Rectangle {
         id: audioErrorShade

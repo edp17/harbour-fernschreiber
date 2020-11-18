@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020 Sebastian J. Wolf
+    Copyright (C) 2020 Sebastian J. Wolf and other contributors
 
     This file is part of Fernschreiber.
 
@@ -21,13 +21,13 @@
 #define CHATMODEL_H
 
 #include <QAbstractListModel>
-#include <QDebug>
-#include <QMutex>
 #include "tdlibwrapper.h"
 
 class ChatModel : public QAbstractListModel
 {
     Q_OBJECT
+    Q_PROPERTY(QVariantMap smallPhoto READ smallPhoto NOTIFY smallPhotoChanged)
+
 public:
     ChatModel(TDLibWrapper *tdLibWrapper);
     ~ChatModel() override;
@@ -36,40 +36,44 @@ public:
     virtual QVariant data(const QModelIndex &index, int role) const override;
     virtual bool insertRows(int row, int count, const QModelIndex &parent = QModelIndex()) override;
 
+
     Q_INVOKABLE void initialize(const QVariantMap &chatInformation);
     Q_INVOKABLE void triggerLoadMoreHistory();
+    Q_INVOKABLE void triggerLoadMoreFuture();
     Q_INVOKABLE QVariantMap getChatInformation();
-    Q_INVOKABLE QVariantMap getMessage(const int &index);
+    Q_INVOKABLE QVariantMap getMessage(int index);
+    Q_INVOKABLE int getLastReadMessageIndex();
+    QVariantMap smallPhoto() const;
 
 signals:
-    void messagesReceived(const int &modelIndex, const int &lastReadSentIndex);
-    void messagesIncrementalUpdate(const int &modelIndex, const int &lastReadSentIndex);
+    void messagesReceived(int modelIndex, int lastReadSentIndex, int totalCount);
+    void messagesIncrementalUpdate(int modelIndex, int lastReadSentIndex);
     void newMessageReceived(const QVariantMap &message);
-    void unreadCountUpdated(const int &unreadCount, const QString &lastReadInboxMessageId);
-    void lastReadSentMessageUpdated(const int &lastReadSentIndex);
+    void unreadCountUpdated(int unreadCount, const QString &lastReadInboxMessageId);
+    void lastReadSentMessageUpdated(int lastReadSentIndex);
     void notificationSettingsUpdated();
-    void messageUpdated(const int &modelIndex);
+    void messageUpdated(int modelIndex);
     void messagesDeleted();
+    void smallPhotoChanged();
 
 public slots:
-    void handleMessagesReceived(const QVariantList &messages);
+    void handleMessagesReceived(const QVariantList &messages, int totalCount);
     void handleNewMessageReceived(const QString &chatId, const QVariantMap &message);
-    void handleChatReadInboxUpdated(const QString &chatId, const QString &lastReadInboxMessageId, const int &unreadCount);
+    void handleChatReadInboxUpdated(const QString &chatId, const QString &lastReadInboxMessageId, int unreadCount);
     void handleChatReadOutboxUpdated(const QString &chatId, const QString &lastReadOutboxMessageId);
     void handleMessageSendSucceeded(const QString &messageId, const QString &oldMessageId, const QVariantMap &message);
     void handleChatNotificationSettingsUpdated(const QString &chatId, const QVariantMap &chatNotificationSettings);
+    void handleChatPhotoUpdated(qlonglong chatId, const QVariantMap &photo);
     void handleMessageContentUpdated(const QString &chatId, const QString &messageId, const QVariantMap &newContent);
     void handleMessagesDeleted(const QString &chatId, const QVariantList &messageIds);
 
 private:
-
     TDLibWrapper *tdLibWrapper;
     QVariantList messages;
     QVariantList messagesToBeAdded;
     QVariantMap messageIndexMap;
-    QMutex messagesMutex;
     QVariantMap chatInformation;
-    QString chatId;
+    qlonglong chatId;
     bool inReload;
     bool inIncrementalUpdate;
 
@@ -78,6 +82,7 @@ private:
     int calculateLastKnownMessageId();
     int calculateLastReadSentMessageId();
     void calculateMessageIndexMap();
+    bool isMostRecentMessageLoaded();
 };
 
 #endif // CHATMODEL_H

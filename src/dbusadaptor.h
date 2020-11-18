@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020 Sebastian J. Wolf
+    Copyright (C) 2020 Sebastian J. Wolf and other contributors
 
     This file is part of Fernschreiber.
 
@@ -33,9 +33,11 @@ public:
 
 signals:
     void pleaseOpenMessage(const QString &chatId, const QString &messageId);
+    void pleaseOpenUrl(const QString &url);
 
 public slots:
     void openMessage(const QString &chatId, const QString &messageId);
+    void openUrl(const QStringList &arguments);
 
 };
 

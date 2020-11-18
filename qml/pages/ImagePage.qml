@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020 Sebastian J. Wolf
+    Copyright (C) 2020 Sebastian J. Wolf and other contributors
 
     This file is part of Fernschreiber.
 
@@ -16,18 +16,18 @@
     You should have received a copy of the GNU General Public License
     along with Fernschreiber. If not, see <http://www.gnu.org/licenses/>.
 */
-import QtQuick 2.0
+import QtQuick 2.6
 import Sailfish.Silica 1.0
-import QtMultimedia 5.0
 import "../components"
 import "../js/functions.js" as Functions
 
 Page {
     id: imagePage
     allowedOrientations: Orientation.All
+    backNavigation: !imageOnly
 
-    property variant photoData;
-    property variant pictureFileInformation;
+    property var photoData;
+    property var pictureFileInformation;
 
     property string imageUrl;
     property int imageWidth;
@@ -42,6 +42,8 @@ Page {
     property real centerY;
     property real oldCenterX;
     property real oldCenterY;
+
+    property bool imageOnly
 
     Component.onCompleted: {
         updatePicture();
@@ -88,14 +90,12 @@ Page {
     }
 
     SilicaFlickable {
-        id: imageFlickable
         anchors.fill: parent
-        clip: true
-        contentWidth: imagePinchArea.width;
-        contentHeight: imagePinchArea.height;
+        flickableDirection: Flickable.VerticalFlick
+        interactive: !imageOnly
 
         PullDownMenu {
-            visible: (typeof imagePage.imageUrl !== "undefined")
+            visible: !imageOnly && imageUrl
             MenuItem {
                 text: qsTr("Download Picture")
                 onClicked: {
@@ -104,85 +104,89 @@ Page {
             }
         }
 
-        transitions: Transition {
-            NumberAnimation { properties: "contentX, contentY"; easing.type: Easing.Linear }
-        }
-
         AppNotification {
             id: imageNotification
         }
 
-        PinchArea {
-            id: imagePinchArea
-            width:  Math.max( singleImage.width * singleImage.scale, imageFlickable.width )
-            height: Math.max( singleImage.height * singleImage.scale, imageFlickable.height )
+        SilicaFlickable {
+            id: imageFlickable
+            anchors.fill: parent
+            clip: true
+            contentWidth: imagePinchArea.width
+            contentHeight: imagePinchArea.height
+            flickableDirection: Flickable.HorizontalAndVerticalFlick
+            quickScrollEnabled: false
 
-            enabled: singleImage.visible
-            pinch {
-                target: singleImage
-                minimumScale: 1
-                maximumScale: 4
-            }
+            PinchArea {
+                id: imagePinchArea
+                width:  Math.max( singleImage.width * singleImage.scale, imageFlickable.width )
+                height: Math.max( singleImage.height * singleImage.scale, imageFlickable.height )
 
-            onPinchUpdated: {
-                imagePage.centerX = pinch.center.x;
-                imagePage.centerY = pinch.center.y;
-            }
+                enabled: singleImage.status === Image.Ready
+                pinch {
+                    target: singleImage
+                    minimumScale: 1
+                    maximumScale: 4
+                }
 
-            Image {
-                id: singleImage
-                source: imageUrl
-                width: imagePage.imageWidth * imagePage.sizingFactor
-                height: imagePage.imageHeight * imagePage.sizingFactor
-                anchors.centerIn: parent
+                onPinchUpdated: {
+                    imagePage.centerX = pinch.center.x
+                    imagePage.centerY = pinch.center.y
+                    imageFlickable.returnToBounds()
+                }
 
-                fillMode: Image.PreserveAspectFit
-                asynchronous: true
+                Image {
+                    id: singleImage
+                    source: imageUrl
+                    width: imagePage.imageWidth * imagePage.sizingFactor
+                    height: imagePage.imageHeight * imagePage.sizingFactor
+                    anchors.centerIn: parent
 
-                visible: status === Image.Ready ? true : false
-                opacity: status === Image.Ready ? 1 : 0
-                Behavior on opacity { NumberAnimation {} }
-                onScaleChanged: {
-                    var newWidth = singleImage.width * singleImage.scale;
-                    var newHeight = singleImage.height * singleImage.scale;
-                    var oldWidth = singleImage.width * imagePage.previousScale;
-                    var oldHeight = singleImage.height * imagePage.previousScale;
-                    var widthDifference = newWidth - oldWidth;
-                    var heightDifference = newHeight - oldHeight;
+                    fillMode: Image.PreserveAspectFit
+                    asynchronous: true
 
-                    if (oldWidth > imageFlickable.width || newWidth > imageFlickable.width) {
-                        var xRatioNew = imagePage.centerX / newWidth;
-                        var xRatioOld = imagePage.centerX / oldHeight;
-                        imageFlickable.contentX = imageFlickable.contentX + ( xRatioNew * widthDifference );
+                    visible: opacity > 0
+                    opacity: status === Image.Ready ? 1 : 0
+                    Behavior on opacity { FadeAnimation {} }
+                    onScaleChanged: {
+                        var newWidth = singleImage.width * singleImage.scale;
+                        var newHeight = singleImage.height * singleImage.scale;
+                        var oldWidth = singleImage.width * imagePage.previousScale;
+                        var oldHeight = singleImage.height * imagePage.previousScale;
+                        var widthDifference = newWidth - oldWidth;
+                        var heightDifference = newHeight - oldHeight;
+
+                        if (oldWidth > imageFlickable.width || newWidth > imageFlickable.width) {
+                            var xRatioNew = imagePage.centerX / newWidth;
+                            var xRatioOld = imagePage.centerX / oldHeight;
+                            imageFlickable.contentX = imageFlickable.contentX + ( xRatioNew * widthDifference );
+                        }
+                        if (oldHeight > imageFlickable.height || newHeight > imageFlickable.height) {
+                            var yRatioNew = imagePage.centerY / newHeight;
+                            var yRatioOld = imagePage.centerY / oldHeight;
+                            imageFlickable.contentY = imageFlickable.contentY + ( yRatioNew * heightDifference );
+                        }
+
+                        imagePage.previousScale = singleImage.scale;
+                        imagePage.oldCenterX = imagePage.centerX;
+                        imagePage.oldCenterY = imagePage.centerY;
                     }
-                    if (oldHeight > imageFlickable.height || newHeight > imageFlickable.height) {
-                        var yRatioNew = imagePage.centerY / newHeight;
-                        var yRatioOld = imagePage.centerY / oldHeight;
-                        imageFlickable.contentY = imageFlickable.contentY + ( yRatioNew * heightDifference );
-                    }
+                }
 
-                    imagePage.previousScale = singleImage.scale;
-                    imagePage.oldCenterX = imagePage.centerX;
-                    imagePage.oldCenterY = imagePage.centerY;
+                MouseArea {
+                    anchors.fill: parent
+                    visible: singleImage.visible
+
+                    onClicked: imageOnly = !imageOnly // Toggle "Image only" mode on tap
+                    onDoubleClicked: ; // This introduces a delay before onClicked is invoked
                 }
             }
-        }
 
+            ScrollDecorator { flickable: imageFlickable }
+        }
     }
 
-    Image {
-        id: imageLoadingBackgroundImage
-        source: "../../images/background-" + ( Theme.colorScheme ? "black" : "white" ) + "-small.png"
-        anchors {
-            centerIn: parent
-        }
-        width: parent.width - Theme.paddingMedium
-        height: parent.height - Theme.paddingMedium
+    BackgroundImage {
         visible: singleImage.status !== Image.Ready
-        asynchronous: true
-
-        fillMode: Image.PreserveAspectFit
-        opacity: 0.15
     }
-
 }

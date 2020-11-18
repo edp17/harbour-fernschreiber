@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020 Sebastian J. Wolf
+    Copyright (C) 2020 Sebastian J. Wolf and other contributors
 
     This file is part of Fernschreiber.
 
@@ -16,10 +16,10 @@
     You should have received a copy of the GNU General Public License
     along with Fernschreiber. If not, see <http://www.gnu.org/licenses/>.
 */
-import QtQuick 2.0
+import QtQuick 2.6
 import Sailfish.Silica 1.0
+import WerkWolf.Fernschreiber 1.0
 import "../js/functions.js" as Functions
-
 
 Page {
     id: settingsPage
@@ -33,7 +33,6 @@ Page {
         Column {
             id: column
             width: settingsPage.width
-            spacing: Theme.paddingLarge
 
             PageHeader {
                 title: qsTr("Settings")
@@ -44,16 +43,101 @@ Page {
             }
 
             TextSwitch {
-                checked: tdLibWrapper.getSendByEnter()
+                checked: appSettings.sendByEnter
                 text: qsTr("Send message by enter")
                 description: qsTr("Send your message by pressing the enter key")
-                onCheckedChanged: {
-                    tdLibWrapper.setSendByEnter(checked);
+                automaticCheck: false
+                onClicked: {
+                    appSettings.sendByEnter = !checked
                 }
             }
 
-            VerticalScrollDecorator {}
+            TextSwitch {
+                checked: appSettings.useOpenWith
+                text: qsTr("Open-with menu integration")
+                description: qsTr("Integrate Fernschreiber into open-with menu of Sailfish OS")
+                automaticCheck: false
+                onClicked: {
+                    appSettings.useOpenWith = !checked
+                }
+            }
+
+            ComboBox {
+                id: feedbackComboBox
+                label: qsTr("Notification feedback")
+                description: qsTr("Use non-graphical feedback (sound, vibration) for notifications")
+                menu: ContextMenu {
+                    id: feedbackMenu
+
+                    MenuItem {
+                        readonly property int value: AppSettings.NotificationFeedbackAll
+                        text: qsTr("All events")
+                        onClicked: {
+                            appSettings.notificationFeedback = value
+                        }
+                    }
+                    MenuItem {
+                        readonly property int value: AppSettings.NotificationFeedbackNew
+                        text: qsTr("Only new events")
+                        onClicked: {
+                            appSettings.notificationFeedback = value
+                        }
+                    }
+                    MenuItem {
+                        readonly property int value: AppSettings.NotificationFeedbackNone
+                        text: qsTr("None")
+                        onClicked: {
+                            appSettings.notificationFeedback = value
+                        }
+                    }
+                }
+
+                Component.onCompleted: updateFeedbackSelection()
+
+                function updateFeedbackSelection() {
+                    var menuItems = feedbackMenu.children
+                    var n = menuItems.length
+                    for (var i=0; i<n; i++) {
+                        if (menuItems[i].value === appSettings.notificationFeedback) {
+                            currentIndex = i
+                            return
+                        }
+                    }
+                }
+
+                Connections {
+                    target: appSettings
+                    onNotificationFeedbackChanged: {
+                        feedbackComboBox.updateFeedbackSelection()
+                    }
+                }
+            }
+
+            SectionHeader {
+                text: qsTr("Appearance")
+            }
+
+            TextSwitch {
+                checked: appSettings.animateStickers
+                text: qsTr("Animate stickers")
+                automaticCheck: false
+                onClicked: {
+                    appSettings.animateStickers = !checked
+                }
+            }
+
+            TextSwitch {
+                checked: appSettings.showStickersAsImages
+                text: qsTr("Show stickers as images")
+                description: qsTr("Show background for stickers and align them centrally like images")
+                automaticCheck: false
+                onClicked: {
+                    appSettings.showStickersAsImages = !checked
+                }
+            }
+
         }
 
+        VerticalScrollDecorator {}
     }
 }

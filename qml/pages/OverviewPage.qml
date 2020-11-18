@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020 Sebastian J. Wolf
+    Copyright (C) 2020 Sebastian J. Wolf and other contributors
 
     This file is part of Fernschreiber.
 
@@ -16,9 +16,7 @@
     You should have received a copy of the GNU General Public License
     along with Fernschreiber. If not, see <http://www.gnu.org/licenses/>.
 */
-import QtQuick 2.5
-import QtGraphicalEffects 1.0
-import QtMultimedia 5.0
+import QtQuick 2.6
 import Sailfish.Silica 1.0
 import Nemo.Notifications 1.0
 import WerkWolf.Fernschreiber 1.0
@@ -48,22 +46,24 @@ Page {
         onPleaseOpenMessage: {
             console.log("[OverviewPage] Opening chat from external call...")
             if (chatListCreated) {
-                if (status !== PageStatus.Active) {
-                    pageStack.pop(pageStack.find( function(page){ return(page._depth === 0)} ), PageStackAction.Immediate);
-                }
-                pageStack.push(Qt.resolvedUrl("../pages/ChatPage.qml"), { "chatInformation" : tdLibWrapper.getChat(chatId) });
+                pageStack.pop(overviewPage, PageStackAction.Immediate)
+                pageStack.push(Qt.resolvedUrl("../pages/ChatPage.qml"), { "chatInformation" : tdLibWrapper.getChat(chatId) }, PageStackAction.Immediate)
             }
+        }
+        onPleaseOpenUrl: {
+            console.log("[OverviewPage] Opening URL requested: " + url);
+            Functions.handleLink(url);
         }
     }
 
     Timer {
         id: chatListCreatedTimer
-        interval: 500
+        interval: 300
         running: false
         repeat: false
         onTriggered: {
             overviewPage.chatListCreated = true;
-            chatListModel.enableDeltaUpdates();
+            chatListModel.redrawModel();
         }
     }
 
@@ -94,6 +94,8 @@ Page {
 
     function updateContent() {
         tdLibWrapper.getChats();
+        tdLibWrapper.getRecentStickers();
+        tdLibWrapper.getInstalledStickerSets();
     }
 
     function initializePage() {
@@ -106,14 +108,9 @@ Page {
     function handleAuthorizationState() {
         switch (overviewPage.authorizationState) {
         case TelegramAPI.WaitPhoneNumber:
-            overviewPage.loading = false;
-            pageStack.push(Qt.resolvedUrl("../pages/InitializationPage.qml"));
-            break;
         case TelegramAPI.WaitCode:
-            overviewPage.loading = false;
-            pageStack.push(Qt.resolvedUrl("../pages/InitializationPage.qml"));
-            break;
         case TelegramAPI.WaitPassword:
+        case TelegramAPI.WaitRegistration:
             overviewPage.loading = false;
             pageStack.push(Qt.resolvedUrl("../pages/InitializationPage.qml"));
             break;
@@ -142,15 +139,28 @@ Page {
         }
         onChatLastMessageUpdated: {
             if (!overviewPage.chatListCreated) {
-                chatListCreatedTimer.stop();
-                chatListCreatedTimer.start();
+                chatListCreatedTimer.restart();
             }
         }
         onChatOrderUpdated: {
             if (!overviewPage.chatListCreated) {
-                chatListCreatedTimer.stop();
-                chatListCreatedTimer.start();
+                chatListCreatedTimer.restart();
             }
+        }
+        onChatsReceived: {
+            if(chats && chats.chat_ids && chats.chat_ids.length === 0) {
+                chatListCreatedTimer.restart();
+            }
+        }
+        onChatReceived: {
+            if(chat["@extra"] === "openDirectly") {
+                pageStack.pop(overviewPage, PageStackAction.Immediate)
+                // if we get a new chat (no messages?), we can not use the provided data
+                pageStack.push(Qt.resolvedUrl("../pages/ChatPage.qml"), { "chatInformation" : tdLibWrapper.getChat(chat.id) });
+            }
+        }
+        onErrorReceived: {
+            Functions.handleErrorMessage(code, message);
         }
     }
 
@@ -174,6 +184,10 @@ Page {
                 text: qsTr("Settings")
                 onClicked: pageStack.push(Qt.resolvedUrl("../pages/SettingsPage.qml"))
             }
+        }
+
+        AppNotification {
+            id: appNotification
         }
 
         Column {
@@ -215,213 +229,31 @@ Page {
                     anchors.fill: parent
 
                     clip: true
-                    visible: count > 0
                     opacity: overviewPage.chatListCreated ? 1 : 0
                     Behavior on opacity { NumberAnimation {} }
 
                     model: chatListModel
-                    delegate: ListItem {
-
-                        id: chatListViewItem
-
-                        contentHeight: chatListRow.height + chatListSeparator.height + 2 * Theme.paddingMedium
-                        contentWidth: parent.width
+                    delegate: ChatListViewItem {
+                        ownUserId: overviewPage.ownUserId
 
                         onClicked: {
-                            pageStack.push(Qt.resolvedUrl("../pages/ChatPage.qml"), { "chatInformation" : display });
-                        }
-
-                        menu: ContextMenu {
-                            visible: display.id !== overviewPage.ownUserId
-                            MenuItem {
-                                onClicked: {
-                                    var newNotificationSettings = display.notification_settings;
-                                    if (newNotificationSettings.mute_for > 0) {
-                                        newNotificationSettings.mute_for = 0;
-                                    } else {
-                                        newNotificationSettings.mute_for = 6666666;
-                                    }
-                                    tdLibWrapper.setChatNotificationSettings(display.id, newNotificationSettings);
-                                }
-                                text: display.notification_settings.mute_for > 0 ? qsTr("Unmute Chat") : qsTr("Mute Chat")
-                            }
+                           pageStack.push(Qt.resolvedUrl("../pages/ChatPage.qml"), { "chatInformation" : display });
                         }
 
                         Connections {
                             target: chatListModel
                             onChatChanged: {
-                                if (overviewPage.chatListCreated) {
-                                    // Force update of all list item elements. dataChanged() doesn't seem to trigger them all :(
-                                    chatListPictureThumbnail.photoData = (typeof display.photo !== "undefined") ? display.photo.small : "";
-                                    chatUnreadMessagesCountBackground.visible = display.unread_count > 0;
-                                    chatUnreadMessagesCount.text = display.unread_count > 99 ? "99+" : display.unread_count;
-                                    chatListNameText.text = display.title !== "" ? Emoji.emojify(display.title, Theme.fontSizeMedium) + ( display.notification_settings.mute_for > 0 ? Emoji.emojify(" 🔇", Theme.fontSizeMedium) : "" ) : qsTr("Unknown");
-                                    chatListLastUserText.text = (typeof display.last_message !== "undefined") ? ( display.last_message.sender_user_id !== overviewPage.ownUserId ? Emoji.emojify(Functions.getUserName(tdLibWrapper.getUserInformation(display.last_message.sender_user_id)), Theme.fontSizeExtraSmall) : qsTr("You") ) : qsTr("Unknown");
-                                    chatListLastMessageText.text = (typeof display.last_message !== "undefined") ? Emoji.emojify(Functions.getMessageText(display.last_message, true), Theme.fontSizeExtraSmall) : qsTr("Unknown");
-                                    messageContactTimeElapsedText.text = (typeof display.last_message !== "undefined") ? Functions.getDateTimeElapsed(display.last_message.date) : qsTr("Unknown");
+                                if (overviewPage.chatListCreated && changedChatId === chat_id) {
+                                    // Force update of some list item elements (currently only last message text seems to create problems). dataChanged() doesn't seem to trigger them all :(
+                                    secondaryText.text = last_message_text ? Emoji.emojify(last_message_text, Theme.fontSizeExtraSmall) : qsTr("Unknown")
                                 }
                             }
                         }
+                    }
 
-                        Column {
-                            id: chatListColumn
-                            width: parent.width - ( 2 * Theme.horizontalPageMargin )
-                            spacing: Theme.paddingSmall
-                            anchors {
-                                horizontalCenter: parent.horizontalCenter
-                                verticalCenter: parent.verticalCenter
-                            }
-
-                            Row {
-                                id: chatListRow
-                                width: parent.width
-                                height: chatListContentColumn.height
-                                spacing: Theme.paddingMedium
-
-                                Column {
-                                    id: chatListPictureColumn
-                                    width: chatListContentColumn.height - Theme.paddingSmall
-                                    height: chatListContentColumn.height - Theme.paddingSmall
-                                    anchors.verticalCenter: parent.verticalCenter
-
-                                    Item {
-                                        id: chatListPictureItem
-                                        width: parent.width
-                                        height: parent.width
-
-                                        ProfileThumbnail {
-                                            id: chatListPictureThumbnail
-                                            photoData: (typeof display.photo !== "undefined") ? display.photo.small : ""
-                                            replacementStringHint: chatListNameText.text
-                                            width: parent.width
-                                            height: parent.width
-                                            forceElementUpdate: overviewPage.chatListCreated
-                                        }
-
-                                        Rectangle {
-                                            id: chatUnreadMessagesCountBackground
-                                            color: Theme.highlightBackgroundColor
-                                            width: Theme.fontSizeLarge
-                                            height: Theme.fontSizeLarge
-                                            anchors.right: parent.right
-                                            anchors.bottom: parent.bottom
-                                            radius: parent.width / 2
-                                            visible: display.unread_count > 0
-                                        }
-
-                                        Text {
-                                            id: chatUnreadMessagesCount
-                                            font.pixelSize: Theme.fontSizeExtraSmall
-                                            font.bold: true
-                                            color: Theme.primaryColor
-                                            anchors.centerIn: chatUnreadMessagesCountBackground
-                                            visible: chatUnreadMessagesCountBackground.visible
-                                            text: display.unread_count > 99 ? "99+" : display.unread_count
-                                        }
-                                    }
-                                }
-
-                                Column {
-                                    id: chatListContentColumn
-                                    width: parent.width * 5 / 6 - Theme.horizontalPageMargin
-                                    spacing: Theme.paddingSmall
-
-                                    Text {
-                                        id: chatListNameText
-                                        text: display.title !== "" ? Emoji.emojify(display.title, Theme.fontSizeMedium) + ( display.notification_settings.mute_for > 0 ? Emoji.emojify(" 🔇", Theme.fontSizeMedium) : "" ) : qsTr("Unknown")
-                                        textFormat: Text.StyledText
-                                        font.pixelSize: Theme.fontSizeMedium
-                                        color: Theme.primaryColor
-                                        elide: Text.ElideRight
-                                        width: parent.width
-                                        onTruncatedChanged: {
-                                            // There is obviously a bug in QML in truncating text with images.
-                                            // We simply remove Emojis then...
-                                            if (truncated) {
-                                                text = text.replace(/\<img [^>]+\/\>/g, "");
-                                            }
-                                        }
-                                    }
-
-                                    Row {
-                                        id: chatListLastMessageRow
-                                        width: parent.width
-                                        spacing: Theme.paddingSmall
-                                        Text {
-                                            id: chatListLastUserText
-                                            text: (typeof display.last_message !== "undefined") ? ( display.last_message.sender_user_id !== overviewPage.ownUserId ? Emoji.emojify(Functions.getUserName(tdLibWrapper.getUserInformation(display.last_message.sender_user_id)), font.pixelSize) : qsTr("You") ) : qsTr("Unknown")
-                                            font.pixelSize: Theme.fontSizeExtraSmall
-                                            color: Theme.highlightColor
-                                            textFormat: Text.StyledText
-                                            onTruncatedChanged: {
-                                                // There is obviously a bug in QML in truncating text with images.
-                                                // We simply remove Emojis then...
-                                                if (truncated) {
-                                                    text = text.replace(/\<img [^>]+\/\>/g, "");
-                                                }
-                                            }
-                                        }
-                                        Text {
-                                            id: chatListLastMessageText
-                                            text: (typeof display.last_message !== "undefined") ? Emoji.emojify(Functions.getMessageText(display.last_message, true), Theme.fontSizeExtraSmall) : qsTr("Unknown")
-                                            font.pixelSize: Theme.fontSizeExtraSmall
-                                            color: Theme.primaryColor
-                                            width: parent.width - Theme.paddingMedium - chatListLastUserText.width
-                                            elide: Text.ElideRight
-                                            textFormat: Text.StyledText
-                                            onTruncatedChanged: {
-                                                // There is obviously a bug in QML in truncating text with images.
-                                                // We simply remove Emojis then...
-                                                if (truncated) {
-                                                    text = text.replace(/\<img [^>]+\/\>/g, "");
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    Timer {
-                                        id: messageContactTimeUpdater
-                                        interval: 60000
-                                        running: true
-                                        repeat: true
-                                        onTriggered: {
-                                            if (typeof display.last_message !== "undefined") {
-                                                messageContactTimeElapsedText.text = Functions.getDateTimeElapsed(display.last_message.date);
-                                                // Force update of all list item elements. dataChanged() doesn't seem to trigger them all :(
-                                                chatListPictureThumbnail.photoData = (typeof display.photo !== "undefined") ? display.photo.small : "";
-                                                chatUnreadMessagesCountBackground.visible = display.unread_count > 0;
-                                                chatUnreadMessagesCount.text = display.unread_count > 99 ? "99+" : display.unread_count;
-                                                chatListNameText.text = display.title !== "" ? Emoji.emojify(display.title, Theme.fontSizeMedium) + ( display.notification_settings.mute_for > 0 ? Emoji.emojify(" 🔇", Theme.fontSizeMedium) : "" ) : qsTr("Unknown");
-                                                chatListLastUserText.text = (typeof display.last_message !== "undefined") ? ( display.last_message.sender_user_id !== overviewPage.ownUserId ? Emoji.emojify(Functions.getUserName(tdLibWrapper.getUserInformation(display.last_message.sender_user_id)), Theme.fontSizeExtraSmall) : qsTr("You") ) : qsTr("Unknown");
-                                                chatListLastMessageText.text = (typeof display.last_message !== "undefined") ? Emoji.emojify(Functions.getMessageText(display.last_message, true), Theme.fontSizeExtraSmall) : qsTr("Unknown");
-                                            }
-                                        }
-                                    }
-
-                                    Text {
-                                        id: messageContactTimeElapsedText
-                                        text: (typeof display.last_message !== "undefined") ? Functions.getDateTimeElapsed(display.last_message.date) : qsTr("Unknown")
-                                        font.pixelSize: Theme.fontSizeTiny
-                                        color: Theme.secondaryColor
-                                    }
-                                }
-                            }
-
-                        }
-
-                        Separator {
-                            id: chatListSeparator
-
-                            anchors {
-                                top: chatListColumn.bottom
-                                topMargin: Theme.paddingMedium
-                            }
-
-                            width: parent.width
-                            color: Theme.primaryColor
-                            horizontalAlignment: Qt.AlignHCenter
-                        }
-
+                    ViewPlaceholder {
+                        enabled: chatListView.count === 0
+                        text: qsTr("You don't have any chats yet.")
                     }
 
                     VerticalScrollDecorator {}
@@ -449,13 +281,7 @@ Page {
                         size: BusyIndicatorSize.Large
                     }
                 }
-
-
             }
-
-
         }
-
     }
-
 }

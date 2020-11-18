@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020 Sebastian J. Wolf
+    Copyright (C) 2020 Sebastian J. Wolf and other contributors
 
     This file is part of Fernschreiber.
 
@@ -16,16 +16,20 @@
     You should have received a copy of the GNU General Public License
     along with Fernschreiber. If not, see <http://www.gnu.org/licenses/>.
 */
-import QtQuick 2.5
-import QtGraphicalEffects 1.0
+import QtQuick 2.6
 import Sailfish.Silica 1.0
 
 Item {
 
     id: imagePreviewItem
 
-    property variant photoData;
-    property variant pictureFileInformation;
+    property ListItem messageListItem
+    property var rawMessage: messageListItem.myMessage
+    property var photoData: rawMessage.content.photo;
+    property var pictureFileInformation;
+
+    width: parent.width
+    height: width * 2 / 3
 
     Component.onCompleted: {
         updatePicture();
@@ -81,19 +85,7 @@ Item {
         }
     }
 
-    Image {
-        id: imageLoadingBackgroundImage
-        source: "../../images/background-" + ( Theme.colorScheme ? "black" : "white" ) + "-small.png"
-        anchors {
-            centerIn: parent
-        }
-        width: parent.width - Theme.paddingMedium
-        height: parent.height - Theme.paddingMedium
+    BackgroundImage {
         visible: singleImage.status !== Image.Ready
-        asynchronous: true
-
-        fillMode: Image.PreserveAspectFit
-        opacity: 0.15
     }
-
 }

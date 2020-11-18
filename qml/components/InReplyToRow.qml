@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020 Sebastian J. Wolf
+    Copyright (C) 2020 Sebastian J. Wolf and other contributors
 
     This file is part of Fernschreiber.
 
@@ -16,9 +16,8 @@
     You should have received a copy of the GNU General Public License
     along with Fernschreiber. If not, see <http://www.gnu.org/licenses/>.
 */
-import QtQuick 2.0
+import QtQuick 2.6
 import Sailfish.Silica 1.0
-import QtMultimedia 5.0
 import "../components"
 import "../js/functions.js" as Functions
 import "../js/twemoji.js" as Emoji
@@ -27,14 +26,18 @@ Row {
     id: inReplyToRow
     spacing: Theme.paddingSmall
     width: parent.width
+    height: inReplyToMessageColumn.height
 
     property string myUserId;
-    property variant inReplyToMessage;
+    property var inReplyToMessage;
+    property bool editable: false;
+
+    signal clearRequested()
 
     onInReplyToMessageChanged: {
         if (inReplyToMessage) {
             inReplyToUserText.text = (inReplyToRow.inReplyToMessage.sender_user_id !== inReplyToRow.myUserId) ? Emoji.emojify(Functions.getUserName(tdLibWrapper.getUserInformation(inReplyToRow.inReplyToMessage.sender_user_id)), inReplyToUserText.font.pixelSize) : qsTr("You");
-            inReplyToMessageText.text = Emoji.emojify(Functions.getMessageText(inReplyToRow.inReplyToMessage, true), inReplyToMessageText.font.pixelSize);
+            inReplyToMessageText.text = Emoji.emojify(Functions.getMessageText(inReplyToRow.inReplyToMessage, true, inReplyToRow.inReplyToMessage.sender_user_id === inReplyToRow.myUserId), inReplyToMessageText.font.pixelSize);
         }
     }
 
@@ -46,37 +49,51 @@ Row {
         border.width: 0
     }
 
-    Column {
-        id: inReplyToMessageColumn
-        spacing: Theme.paddingSmall
+    Row {
         width: parent.width - Theme.paddingSmall - inReplyToMessageRectangle.width
+        spacing: Theme.paddingSmall
 
-        Text {
-            id: inReplyToUserText
+        Column {
+            id: inReplyToMessageColumn
+            spacing: Theme.paddingSmall
+            width: parent.width - ( inReplyToRow.editable ? ( Theme.paddingSmall + removeInReplyToIconButton.width ) : 0 )
 
-            width: parent.width
-            font.pixelSize: Theme.fontSizeExtraSmall
-            font.weight: Font.ExtraBold
-            color: Theme.primaryColor
-            maximumLineCount: 1
-            elide: Text.ElideRight
-            textFormat: Text.StyledText
-            horizontalAlignment: Text.AlignLeft
+            Text {
+                id: inReplyToUserText
+
+                width: parent.width
+                font.pixelSize: Theme.fontSizeExtraSmall
+                font.weight: Font.ExtraBold
+                color: Theme.primaryColor
+                maximumLineCount: 1
+                elide: Text.ElideRight
+                textFormat: Text.StyledText
+                horizontalAlignment: Text.AlignLeft
+            }
+
+            Text {
+                id: inReplyToMessageText
+                font.pixelSize: Theme.fontSizeExtraSmall
+                color: Theme.primaryColor
+                width: parent.width
+                elide: Text.ElideRight
+                textFormat: Text.StyledText
+                onTruncatedChanged: {
+                    // There is obviously a bug in QML in truncating text with images.
+                    // We simply remove Emojis then...
+                    if (truncated) {
+                        text = text.replace(/\<img [^>]+\/\>/g, "");
+                    }
+                }
+            }
         }
 
-        Text {
-            id: inReplyToMessageText
-            font.pixelSize: Theme.fontSizeExtraSmall
-            color: Theme.primaryColor
-            width: parent.width
-            elide: Text.ElideRight
-            textFormat: Text.StyledText
-            onTruncatedChanged: {
-                // There is obviously a bug in QML in truncating text with images.
-                // We simply remove Emojis then...
-                if (truncated) {
-                    text = text.replace(/\<img [^>]+\/\>/g, "");
-                }
+        IconButton {
+            id: removeInReplyToIconButton
+            icon.source: "image://theme/icon-m-clear"
+            visible: inReplyToRow.editable
+            onClicked: {
+                inReplyToRow.clearRequested();
             }
         }
     }

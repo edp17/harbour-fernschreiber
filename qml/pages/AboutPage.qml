@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020 Sebastian J. Wolf
+    Copyright (C) 2020 Sebastian J. Wolf and other contributors
 
     This file is part of Fernschreiber.
 
@@ -16,7 +16,7 @@
     You should have received a copy of the GNU General Public License
     along with Fernschreiber. If not, see <http://www.gnu.org/licenses/>.
 */
-import QtQuick 2.0
+import QtQuick 2.6
 import Sailfish.Silica 1.0
 import "../components"
 import "../js/twemoji.js" as Emoji
@@ -26,7 +26,7 @@ Page {
     id: aboutPage
     allowedOrientations: Orientation.All
 
-    property variant userInformation : tdLibWrapper.getUserInformation();
+    property var userInformation : tdLibWrapper.getUserInformation();
 
     SilicaFlickable {
         id: aboutContainer
@@ -44,19 +44,22 @@ Page {
 
             Image {
                 id: wunderfitzImage
-                source: "../../images/fernschreiber.png"
+                source: "../../images/fernschreiber.svg"
                 anchors {
                     horizontalCenter: parent.horizontalCenter
                 }
-
+                sourceSize {
+                    width: width
+                    height: height
+                }
                 fillMode: Image.PreserveAspectFit
                 asynchronous: true
-                width: aboutPage.isPortrait ? ( 1/2 * parent.width ) : ( 1/2 * parent.height )
-
+                width: Math.min(2 * Theme.itemSizeHuge, Math.min(aboutPage.width, aboutPage.height) / 2)
+                height: width
             }
 
             Label {
-                text: "Fernschreiber 0.2"
+                text: "Fernschreiber 0.5"
                 horizontalAlignment: Text.AlignHCenter
                 font.pixelSize: Theme.fontSizeExtraLarge
                 anchors {
@@ -77,8 +80,13 @@ Page {
             }
 
             Label {
-                text: qsTr("By Sebastian J. Wolf")
+                text: qsTr("By Sebastian J. Wolf and <a href=\"https://github.com/Wunderfitz/harbour-fernschreiber#contributions\">other contributors</a>")
                 font.pixelSize: Theme.fontSizeSmall
+                width: parent.width - ( 2 * Theme.horizontalPageMargin )
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.Wrap
+                linkColor: Theme.highlightColor
+                onLinkActivated: Qt.openUrlExternally(link)
                 anchors {
                     horizontalCenter: parent.horizontalCenter
                 }
@@ -252,6 +260,28 @@ Page {
                 linkColor: Theme.highlightColor
 
                 onLinkActivated: Qt.openUrlExternally("https://github.com/twitter/twemoji")
+            }
+
+            Label {
+                x: Theme.horizontalPageMargin
+                width: parent.width  - ( 2 * Theme.horizontalPageMargin )
+                text: qsTr("This project uses rlottie. Copyright 2020 Samsung Electronics Co., Ltd. and other contributors. Thanks for making it available under the conditions of the MIT License!")
+                font.pixelSize: Theme.fontSizeExtraSmall
+                wrapMode: Text.Wrap
+                anchors {
+                    horizontalCenter: parent.horizontalCenter
+                }
+            }
+
+            Text {
+                text: "<a href=\"https://github.com/Samsung/rlottie\">" + qsTr("Open rlottie on GitHub") + "</a>"
+                anchors {
+                    horizontalCenter: parent.horizontalCenter
+                }
+                font.pixelSize: Theme.fontSizeSmall
+                linkColor: Theme.highlightColor
+
+                onLinkActivated: Qt.openUrlExternally("https://github.com/Samsung/rlottie")
             }
 
             Label {

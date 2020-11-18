@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020 Sebastian J. Wolf
+    Copyright (C) 2020 Sebastian J. Wolf and other contributors
 
     This file is part of Fernschreiber.
 
@@ -16,17 +16,20 @@
     You should have received a copy of the GNU General Public License
     along with Fernschreiber. If not, see <http://www.gnu.org/licenses/>.
 */
-import QtQuick 2.5
+import QtQuick 2.6
 import QtGraphicalEffects 1.0
 import Sailfish.Silica 1.0
+import WerkWolf.Fernschreiber 1.0
 
 Item {
 
     id: profileThumbnail
 
-    property variant photoData;
+    property alias photoData: file.fileInformation
     property string replacementStringHint: "X"
-    property bool forceElementUpdate: false
+    property int radius: width / 2
+    property int imageStatus: -1
+    property bool optimizeImageSize: true
 
     function getReplacementString() {
         if (replacementStringHint.length > 2) {
@@ -44,52 +47,10 @@ Item {
         return replacementStringHint;
     }
 
-    function updatePicture() {
-        profileImageLoader.active = false;
-        replacementThumbnailItem.visible = true;
-        if (typeof photoData === "object") {
-            if (photoData.local.is_downloading_completed) {
-                profileImageLoader.active = true;
-                replacementThumbnailItem.visible = false;
-            } else {
-                tdLibWrapper.downloadFile(photoData.id);
-            }
-        }
-    }
-
-    Timer {
-        id: updatePictureTimer
-        interval: 500
-        running: false
-        repeat: false
-        onTriggered: {
-            updatePicture();
-        }
-    }
-
-    Component.onCompleted: {
-        updatePictureTimer.start();
-    }
-
-    onPhotoDataChanged: {
-        if (profileThumbnail.forceElementUpdate) {
-            updatePictureTimer.stop();
-            updatePictureTimer.start();
-        }
-    }
-
-    Connections {
-        target: tdLibWrapper
-        onFileUpdated: {
-            if (fileId === photoData.id) {
-                console.log("File updated, completed? " + fileInformation.local.is_downloading_completed);
-                if (fileInformation.local.is_downloading_completed) {
-                    photoData = fileInformation;
-                    profileImageLoader.active = true;
-                    replacementThumbnailItem.visible = false;
-                }
-            }
-        }
+    TDLibFile {
+        id: file
+        tdlib: tdLibWrapper
+        autoLoad: true
     }
 
     Component {
@@ -97,18 +58,25 @@ Item {
         Item {
             width: parent.width
             height: width
+            visible: opacity > 0
+            opacity: singleImage.status === Image.Ready ? 1 : 0
+            Behavior on opacity { FadeAnimation {} }
 
             Image {
                 id: singleImage
                 width: parent.width - Theme.paddingSmall
-                height: parent.height - Theme.paddingSmall
+                height: width
                 anchors.centerIn: parent
-                source: profileThumbnail.photoData.local.path
-
+                source: file.path
+                sourceSize.width: optimizeImageSize ? width : undefined
+                sourceSize.height: optimizeImageSize ? height : undefined
                 fillMode: Image.PreserveAspectCrop
                 autoTransform: true
                 asynchronous: true
                 visible: false
+                onStatusChanged: {
+                    profileThumbnail.imageStatus = status
+                }
             }
 
             Rectangle {
@@ -116,36 +84,31 @@ Item {
                 width: parent.width - Theme.paddingSmall
                 height: parent.height - Theme.paddingSmall
                 color: Theme.primaryColor
-                radius: parent.width / 2
+                radius: profileThumbnail.radius
                 anchors.centerIn: singleImage
                 visible: false
             }
 
             OpacityMask {
-                id: maskedThumbnail
                 source: singleImage
                 maskSource: profileThumbnailMask
                 anchors.fill: singleImage
-                visible: singleImage.status === Image.Ready ? true : false
-                opacity: singleImage.status === Image.Ready ? 1 : 0
-                Behavior on opacity { NumberAnimation {} }
             }
         }
     }
 
     Loader {
         id: profileImageLoader
-        active: false
+        active: file.isDownloadingCompleted
         asynchronous: true
         width: parent.width
         sourceComponent: profileImageComponent
     }
 
     Item {
-        id: replacementThumbnailItem
         width: parent.width - Theme.paddingSmall
         height: parent.height - Theme.paddingSmall
-        visible: true
+        visible: !profileImageLoader.item || !profileImageLoader.item.visible
 
         Rectangle {
             id: replacementThumbnailBackground
@@ -156,14 +119,11 @@ Item {
         }
 
         Text {
-            id: replacementThumbnailText
             anchors.centerIn: replacementThumbnailBackground
             text: getReplacementString()
             color: Theme.primaryColor
             font.bold: true
-            font.pixelSize: Theme.fontSizeLarge
+            font.pixelSize: ( profileThumbnail.height >= Theme.itemSizeSmall ) ? Theme.fontSizeLarge : Theme.fontSizeMedium
         }
-
     }
-
 }

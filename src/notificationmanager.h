@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020 Sebastian J. Wolf
+    Copyright (C) 2020 Sebastian J. Wolf and other contributors
 
     This file is part of Fernschreiber.
 
@@ -21,43 +21,55 @@
 #define NOTIFICATIONMANAGER_H
 
 #include <QObject>
-#include <QMutex>
+#include <QDBusInterface>
+#include <nemonotifications-qt5/notification.h>
 #include <ngf-qt5/NgfClient>
 #include "tdlibwrapper.h"
+#include "appsettings.h"
 
 class NotificationManager : public QObject
 {
     Q_OBJECT
-public:
-    explicit NotificationManager(TDLibWrapper *tdLibWrapper, QObject *parent = nullptr);
-    ~NotificationManager() override;
+    class ChatInfo;
+    class NotificationGroup;
 
-signals:
+public:
+
+    NotificationManager(TDLibWrapper *tdLibWrapper, AppSettings *appSettings);
+    ~NotificationManager() override;
 
 public slots:
 
-    void handleUpdateActiveNotifications(const QVariantList notificationGroups);
-    void handleUpdateNotificationGroup(const QVariantMap notificationGroupUpdate);
-    void handleUpdateNotification(const QVariantMap updatedNotification);
+    void handleUpdateActiveNotifications(const QVariantList &notificationGroups);
+    void handleUpdateNotificationGroup(const QVariantMap &notificationGroupUpdate);
+    void handleUpdateNotification(const QVariantMap &updatedNotification);
     void handleChatDiscovered(const QString &chatId, const QVariantMap &chatInformation);
-    void handleNgfConnectionStatus(const bool &connected);
-    void handleNgfEventFailed(const quint32 &eventId);
-    void handleNgfEventCompleted(const quint32 &eventId);
-    void handleNgfEventPlaying(const quint32 &eventId);
-    void handleNgfEventPaused(const quint32 &eventId);
+    void handleChatTitleUpdated(const QString &chatId, const QString &title);
+    void handleNgfConnectionStatus(bool connected);
+    void handleNgfEventFailed(quint32 eventId);
+    void handleNgfEventCompleted(quint32 eventId);
+    void handleNgfEventPlaying(quint32 eventId);
+    void handleNgfEventPaused(quint32 eventId);
+
+private:
+
+    void publishNotification(const NotificationGroup *notificationGroup, bool needFeedback);
+    QString getNotificationText(const QVariantMap &notificationContent);
+    void controlLedNotification(bool enabled);
+    void updateNotificationGroup(int groupId, qlonglong chatId, int totalCount,
+        const QVariantList &addedNotifications,
+        const QVariantList &removedNotificationIds = QVariantList(),
+        AppSettings::NotificationFeedback feedback = AppSettings::NotificationFeedbackNone);
 
 private:
 
     TDLibWrapper *tdLibWrapper;
+    AppSettings *appSettings;
     Ngf::Client *ngfClient;
-    QVariantMap chatMap;
-    QVariantMap notificationGroups;
-    QMutex chatListMutex;
-
-    QVariantMap sendNotification(const QString &chatId, const QVariantMap &notificationInformation, const QVariantMap &activeNotifications);
-    void removeNotification(const QVariantMap &notificationInformation);
-    QString getNotificationText(const QVariantMap &notificationContent);
-    void controlLedNotification(const bool &enabled);
+    QMap<qlonglong,ChatInfo*> chatMap;
+    QMap<int,NotificationGroup*> notificationGroups;
+    QDBusInterface mceInterface;
+    QString appIconFile;
 
 };
 

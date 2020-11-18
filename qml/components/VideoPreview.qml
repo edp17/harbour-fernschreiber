@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020 Sebastian J. Wolf
+    Copyright (C) 2020 Sebastian J. Wolf and other contributors
 
     This file is part of Fernschreiber.
 
@@ -16,24 +16,28 @@
     You should have received a copy of the GNU General Public License
     along with Fernschreiber. If not, see <http://www.gnu.org/licenses/>.
 */
-import QtQuick 2.0
+import QtQuick 2.6
 import Sailfish.Silica 1.0
-import QtMultimedia 5.0
+import QtMultimedia 5.6
 import "../js/functions.js" as Functions
 
 Item {
     id: videoMessageComponent
 
-    property variant videoData;
+    property ListItem messageListItem
+    property var rawMessage: messageListItem.myMessage
+
+    property var videoData:  ( rawMessage.content['@type'] === "messageVideo" ) ?  rawMessage.content.video : ( ( rawMessage.content['@type'] === "messageAnimation" ) ? rawMessage.content.animation : rawMessage.content.video_note )
     property string videoUrl;
     property int previewFileId;
     property int videoFileId;
     property bool fullscreen : false;
-    property bool onScreen;
+    property bool onScreen: messageListItem.page.status === PageStatus.Active;
     property string videoType : "video";
+    property bool playRequested: false;
 
     width: parent.width
-    height: parent.height
+    height: ( rawMessage.content['@type'] === "messageVideoNote" ) ? width : Functions.getVideoHeight(width, videoData)
 
     Timer {
         id: screensaverTimer
@@ -74,7 +78,11 @@ Item {
 
     function updateVideoThumbnail() {
         if (videoData) {
-            videoType = videoData['@type'];
+            if (rawMessage.content['@type'] === "messageVideoNote") {
+                videoType = "video";
+            } else {
+                videoType = videoData['@type'];
+            }
             videoFileId = videoData[videoType].id;
             if (typeof videoData.thumbnail !== "undefined") {
                 previewFileId = videoData.thumbnail.photo.id;
@@ -92,6 +100,7 @@ Item {
     }
 
     function handlePlay() {
+        playRequested = true;
         if (videoData[videoType].local.is_downloading_completed) {
             videoUrl = videoData[videoType].local.path;
             videoComponentLoader.active = true;
@@ -109,13 +118,18 @@ Item {
                     videoData.thumbnail.photo = fileInformation;
                     placeholderImage.source = fileInformation.local.path;
                 }
-                if (fileInformation.local.is_downloading_completed && fileId === videoFileId) {
+                if (!fileInformation.remote.is_uploading_active && fileInformation.local.is_downloading_completed && fileId === videoFileId) {
                     videoDownloadBusyIndicator.running = false;
                     videoData[videoType] = fileInformation;
                     videoUrl = fileInformation.local.path;
-                    if (onScreen) {
+                    if (onScreen && playRequested) {
+                        playRequested = false;
                         videoComponentLoader.active = true;
                     }
+                }
+                if (fileId === videoFileId) {
+                    downloadingProgressBar.maximumValue = fileInformation.size;
+                    downloadingProgressBar.value = fileInformation.local.downloaded_size;
                 }
             }
         }
@@ -131,19 +145,8 @@ Item {
         visible: status === Image.Ready ? true : false
     }
 
-    Image {
-        id: imageLoadingBackgroundImage
-        source: "../../images/background-" + ( Theme.colorScheme ? "black" : "white" ) + "-small.png"
-        anchors {
-            centerIn: parent
-        }
-        width: parent.width - Theme.paddingSmall
-        height: parent.height - Theme.paddingSmall
+    BackgroundImage {
         visible: placeholderImage.status !== Image.Ready
-        asynchronous: true
-
-        fillMode: Image.PreserveAspectFit
-        opacity: 0.15
     }
 
     Rectangle {
@@ -155,56 +158,73 @@ Item {
         visible: playButton.visible
     }
 
-    Row {
+    Column {
         width: parent.width
-        height: parent.height
-        Item {
-            height: parent.height
-            width: videoMessageComponent.fullscreen ? parent.width : ( parent.width / 2 )
-            Image {
-                id: playButton
-                anchors.centerIn: parent
-                width: Theme.iconSizeLarge
+        height: downloadingProgressBar.height + videoControlRow.height
+        anchors.centerIn: parent
+
+        Row {
+            id: videoControlRow
+            width: parent.width
+            Item {
+                width: videoMessageComponent.fullscreen ? parent.width : ( parent.width / 2 )
                 height: Theme.iconSizeLarge
-                source: "image://theme/icon-l-play?white"
-                asynchronous: true
-                visible: placeholderImage.status === Image.Ready ? true : false
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: {
-                        fullscreenItem.visible = false;
-                        handlePlay();
+                Image {
+                    id: playButton
+                    anchors.centerIn: parent
+                    width: Theme.iconSizeLarge
+                    height: Theme.iconSizeLarge
+                    source: "image://theme/icon-l-play?white"
+                    asynchronous: true
+                    visible: placeholderImage.status === Image.Ready ? true : false
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+                            fullscreenItem.visible = false;
+                            handlePlay();
+                        }
                     }
                 }
+                BusyIndicator {
+                    id: videoDownloadBusyIndicator
+                    running: false
+                    visible: running
+                    anchors.centerIn: parent
+                    size: BusyIndicatorSize.Large
+                }
             }
-            BusyIndicator {
-                id: videoDownloadBusyIndicator
-                running: false
-                visible: running
-                anchors.centerIn: parent
-                size: BusyIndicatorSize.Large
-            }
-        }
-        Item {
-            id: fullscreenItem
-            height: parent.height
-            width: parent.width / 2
-            visible: !videoMessageComponent.fullscreen
-            Image {
-                id: fullscreenButton
-                anchors.centerIn: parent
-                width: Theme.iconSizeLarge
+            Item {
+                id: fullscreenItem
+                width: parent.width / 2
                 height: Theme.iconSizeLarge
-                asynchronous: true
-                source: "../../images/icon-l-fullscreen.png"
-                visible: ( placeholderImage.status === Image.Ready && !videoMessageComponent.fullscreen ) ? true : false
-                MouseArea {
-                    anchors.fill: parent
+                visible: !videoMessageComponent.fullscreen
+                IconButton {
+                    id: fullscreenButton
+                    anchors.centerIn: parent
+                    width: Theme.iconSizeLarge
+                    height: Theme.iconSizeLarge
+                    icon {
+                        asynchronous: true
+                        source: "../../images/icon-l-fullscreen.svg"
+                        sourceSize {
+                            width: Theme.iconSizeLarge
+                            height: Theme.iconSizeLarge
+                        }
+                    }
+                    visible: ( placeholderImage.status === Image.Ready && !videoMessageComponent.fullscreen ) ? true : false
                     onClicked: {
                         pageStack.push(Qt.resolvedUrl("../pages/VideoPage.qml"), {"videoData": videoData});
                     }
                 }
             }
+        }
+        ProgressBar {
+            id: downloadingProgressBar
+            minimumValue: 0
+            maximumValue: 100
+            value: 0
+            visible: videoDownloadBusyIndicator.visible
+            width: parent.width
         }
     }
 
@@ -244,7 +264,7 @@ Item {
         id: videoComponentLoader
         active: false
         width: parent.width
-        height: Functions.getVideoHeight(parent.width, videoData)
+        height: ( rawMessage.content['@type'] === "messageVideoNote" ) ? width : Functions.getVideoHeight(parent.width, videoData)
         sourceComponent: videoComponent
     }
 
@@ -421,19 +441,22 @@ Item {
                         height: parent.height
                         width: parent.width / 2
                         visible: !videoMessageComponent.fullscreen
-                        Image {
+                        IconButton {
                             id: pausedFullscreenButton
                             anchors.centerIn: parent
                             width: Theme.iconSizeLarge
                             height: Theme.iconSizeLarge
-                            asynchronous: true
-                            source: "../../images/icon-l-fullscreen.png"
-                            visible: ( videoComponentLoader.active && messageVideo.playbackState === MediaPlayer.PausedState ) ? true : false
-                            MouseArea {
-                                anchors.fill: parent
-                                onClicked: {
-                                    pageStack.push(Qt.resolvedUrl("../pages/VideoPage.qml"), {"videoData": videoData});
+                            icon {
+                                asynchronous: true
+                                source: "../../images/icon-l-fullscreen.svg"
+                                sourceSize {
+                                    width: Theme.iconSizeLarge
+                                    height: Theme.iconSizeLarge
                                 }
+                            }
+                            visible: ( videoComponentLoader.active && messageVideo.playbackState === MediaPlayer.PausedState ) ? true : false
+                            onClicked: {
+                                pageStack.push(Qt.resolvedUrl("../pages/VideoPage.qml"), {"videoData": videoData});
                             }
                         }
                     }

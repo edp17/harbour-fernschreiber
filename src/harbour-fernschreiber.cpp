@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020 Sebastian J. Wolf
+    Copyright (C) 2020 Sebastian J. Wolf and other contributors
 
     This file is part of Fernschreiber.
 
@@ -29,11 +29,18 @@
 #include <QQmlEngine>
 #include <QGuiApplication>
 
+#include "appsettings.h"
+#include "tdlibfile.h"
 #include "tdlibwrapper.h"
 #include "chatlistmodel.h"
 #include "chatmodel.h"
 #include "notificationmanager.h"
 #include "dbusadaptor.h"
+#include "processlauncher.h"
+#include "stickermanager.h"
+#include "tgsplugin.h"
+
+Q_IMPORT_PLUGIN(TgsIOPlugin)
 
 int main(int argc, char *argv[])
 {
@@ -42,9 +49,16 @@ int main(int argc, char *argv[])
 
     QQmlContext *context = view.data()->rootContext();
 
-    TDLibWrapper *tdLibWrapper = new TDLibWrapper(view.data());
+    const char *uri = "WerkWolf.Fernschreiber";
+    qmlRegisterType<TDLibFile>(uri, 1, 0, "TDLibFile");
+
+    AppSettings *appSettings = new AppSettings(view.data());
+    context->setContextProperty("appSettings", appSettings);
+    qmlRegisterUncreatableType<AppSettings>(uri, 1, 0, "AppSettings", QString());
+
+    TDLibWrapper *tdLibWrapper = new TDLibWrapper(appSettings, view.data());
     context->setContextProperty("tdLibWrapper", tdLibWrapper);
-    qmlRegisterType<TDLibWrapper>("WerkWolf.Fernschreiber", 1, 0, "TelegramAPI");
+    qmlRegisterUncreatableType<TDLibWrapper>(uri, 1, 0, "TelegramAPI", QString());
 
     DBusAdaptor *dBusAdaptor = tdLibWrapper->getDBusAdaptor();
     context->setContextProperty("dBusAdaptor", dBusAdaptor);
@@ -55,8 +69,14 @@ int main(int argc, char *argv[])
     ChatModel chatModel(tdLibWrapper);
     context->setContextProperty("chatModel", &chatModel);
 
-    NotificationManager notificationManager(tdLibWrapper);
+    NotificationManager notificationManager(tdLibWrapper, appSettings);
     context->setContextProperty("notificationManager", &notificationManager);
+
+    ProcessLauncher processLauncher;
+    context->setContextProperty("processLauncher", &processLauncher);
+
+    StickerManager stickerManager(tdLibWrapper);
+    context->setContextProperty("stickerManager", &stickerManager);
 
     view->setSource(SailfishApp::pathTo("qml/harbour-fernschreiber.qml"));
     view->show();

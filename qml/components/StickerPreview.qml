@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020 Sebastian J. Wolf
+    Copyright (C) 2020 Sebastian J. Wolf and other contributors
 
     This file is part of Fernschreiber.
 
@@ -16,94 +16,85 @@
     You should have received a copy of the GNU General Public License
     along with Fernschreiber. If not, see <http://www.gnu.org/licenses/>.
 */
-import QtQuick 2.5
-import QtGraphicalEffects 1.0
+import QtQuick 2.6
 import Sailfish.Silica 1.0
+import WerkWolf.Fernschreiber 1.0
 
 Item {
+    property ListItem messageListItem
 
-    id: stickerPreviewItem
+    readonly property var stickerData: messageListItem.myMessage.content.sticker;
+    readonly property bool animated: stickerData.is_animated && appSettings.animateStickers
+    readonly property bool stickerVisible: staticStickerLoader.item ? staticStickerLoader.item.visible :
+        animatedStickerLoader.item ? animatedStickerLoader.item.visible : false
+    property real aspectRatio: stickerData.width / stickerData.height
 
-    property variant stickerData;
-    property int usedFileId;
+    implicitWidth: stickerData.width
+    implicitHeight: stickerData.height
 
-    width: stickerData.width + Theme.paddingSmall
-    height: stickerData.height + Theme.paddingSmall
-
-    Component.onCompleted: {
-        updateSticker();
+    TDLibFile {
+        id: file
+        tdlib: tdLibWrapper
+        fileInformation: stickerData.sticker
+        autoLoad: true
     }
 
-    function updateSticker() {
-        if (stickerData) {
-            if (stickerData.is_animated) {
-                // Use thumbnail until we can decode TGS files
-                usedFileId = stickerData.thumbnail.photo.id;
-                if (stickerData.thumbnail.photo.local.is_downloading_completed) {
-                    singleImage.source = stickerData.thumbnail.photo.local.path;
-                } else {
-                    tdLibWrapper.downloadFile(usedFileId);
-                }
-            } else {
-                usedFileId = stickerData.sticker.id;
-                if (stickerData.sticker.local.is_downloading_completed) {
-                    singleImage.source = stickerData.sticker.local.path;
-                } else {
-                    tdLibWrapper.downloadFile(usedFileId);
-                }
-            }
-        }
-    }
+    Item {
+        width: Math.min( stickerData.width, parent.width )
+        height: width * aspectRatio
+        // (centered in image mode, text-like in sticker mode)
+        x: appSettings.showStickersAsImages ? (parent.width - width)/2 :
+            messageListItem.isOwnMessage ? (parent.width - width) : 0
+        anchors.verticalCenter: parent.verticalCenter
 
-    Connections {
-        target: tdLibWrapper
-        onFileUpdated: {
-            if (stickerData) {
-                if (fileId === usedFileId && fileInformation.local.is_downloading_completed) {
-                    if (stickerData.is_animated) {
-                        stickerData.thumbnail.photo = fileInformation;
-                    } else {
-                        stickerData.sticker = fileInformation;
-                    }
-                    singleImage.source = fileInformation.local.path;
-                }
-            }
-        }
-    }
-
-    Image {
-        id: singleImage
-        width: ( ( parent.width - Theme.paddingSmall ) >= stickerData.width ) ? stickerData.width : ( parent.width - Theme.paddingSmall )
-        height: ( ( parent.height - Theme.paddingSmall ) >= stickerData.height ) ? stickerData.height : ( parent.height - Theme.paddingSmall )
-        anchors.centerIn: parent
-
-        fillMode: Image.PreserveAspectCrop
-        autoTransform: true
-        asynchronous: true
-        visible: status === Image.Ready
-        opacity: status === Image.Ready ? 1 : 0
-        Behavior on opacity { NumberAnimation {} }
-        MouseArea {
+        Loader {
+            id: animatedStickerLoader
             anchors.fill: parent
-            onClicked: {
-                //pageStack.push(Qt.resolvedUrl("../pages/ImagePage.qml"), { "photoData" : imagePreviewItem.photoData, "pictureFileInformation" : imagePreviewItem.pictureFileInformation });
+            active: animated
+            sourceComponent: Component {
+                AnimatedImage {
+                    anchors.fill: parent
+                    source: file.path
+                    asynchronous: true
+                    paused: !Qt.application.active
+                    cache: false
+                }
             }
         }
-    }
 
-    Image {
-        id: imageLoadingBackgroundImage
-        source: "../../images/background-" + ( Theme.colorScheme ? "black" : "white" ) + "-small.png"
-        anchors {
-            centerIn: parent
+        Loader {
+            id: staticStickerLoader
+            anchors.fill: parent
+            active: !animated
+            sourceComponent: Component {
+                Image {
+                    anchors.fill: parent
+                    source: file.path
+                    fillMode: Image.PreserveAspectFit
+                    autoTransform: true
+                    asynchronous: true
+                    visible: opacity > 0
+                    opacity: status === Image.Ready ? 1 : 0
+                    Behavior on opacity { FadeAnimation {} }
+                }
+            }
         }
-        width: ( ( parent.width - Theme.paddingSmall ) >= stickerData.width ) ? stickerData.width : ( parent.width - Theme.paddingSmall )
-        height: ( ( parent.height - Theme.paddingSmall ) >= stickerData.height ) ? stickerData.height : ( parent.height - Theme.paddingSmall )
-        visible: singleImage.status !== Image.Ready
-        asynchronous: true
 
-        fillMode: Image.PreserveAspectFit
-        opacity: 0.15
+        Loader {
+            anchors.fill: parent
+            sourceComponent: Component {
+                BackgroundImage {}
+            }
+
+            active: opacity > 0
+            opacity: !stickerVisible && !placeHolderDelayTimer.running ? 0.15 : 0
+            Behavior on opacity { FadeAnimation {} }
+        }
     }
 
+    Timer {
+        id: placeHolderDelayTimer
+        interval: 1000
+        running: true
+    }
 }

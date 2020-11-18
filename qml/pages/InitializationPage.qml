@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020 Sebastian J. Wolf
+    Copyright (C) 2020 Sebastian J. Wolf and other contributors
 
     This file is part of Fernschreiber.
 
@@ -16,7 +16,7 @@
     You should have received a copy of the GNU General Public License
     along with Fernschreiber. If not, see <http://www.gnu.org/licenses/>.
 */
-import QtQuick 2.2
+import QtQuick 2.6
 import Sailfish.Silica 1.0
 import WerkWolf.Fernschreiber 1.0
 
@@ -27,24 +27,39 @@ Page {
 
     property bool loading: true
     property int authorizationState: TelegramAPI.Closed
-
-    BusyLabel {
-        text: qsTr("Loading...")
-        running: initializationPage.loading
-    }
+    property var authorizationStateData: null
 
     Component.onCompleted: {
         initializationPage.authorizationState = tdLibWrapper.getAuthorizationState();
+        initializationPage.authorizationStateData = tdLibWrapper.getAuthorizationStateData();
         initializationPage.loading = false;
-        if (initializationPage.authorizationState === TelegramAPI.WaitCode) {
-            welcomeFlickable.visible = false;
+
+        switch (authorizationState) {
+        case TelegramAPI.WaitCode:
+            initializationPage.loading = false;
+            welcomeColumn.visible = false;
             enterPinColumn.visible = true;
+            enterPinField.focus = true
             enterPasswordColumn.visible = false;
-        }
-        if (initializationPage.authorizationState === TelegramAPI.WaitPassword) {
-            welcomeFlickable.visible = false;
+            waitRegistrationColumn.visible = false;
+            break;
+        case TelegramAPI.WaitPassword:
+            initializationPage.loading = false;
+            welcomeColumn.visible = false;
             enterPinColumn.visible = false;
             enterPasswordColumn.visible = true;
+            waitRegistrationColumn.visible = false;
+            break;
+        case TelegramAPI.WaitRegistration:
+            initializationPage.loading = false;
+            welcomeColumn.visible = false;
+            enterPinColumn.visible = false;
+            enterPasswordColumn.visible = false;
+            waitRegistrationColumn.visible = true;
+            pageHeader.title = qsTr("User Registration")
+            break;
+        default:
+            // Nothing ;)
         }
     }
 
@@ -55,12 +70,21 @@ Page {
             case TelegramAPI.WaitCode:
                 initializationPage.loading = false;
                 enterPinColumn.visible = true;
+                enterPinField.focus = true
                 enterPasswordColumn.visible = false;
+                waitRegistrationColumn.visible = false;
                 break;
             case TelegramAPI.WaitPassword:
                 initializationPage.loading = false;
                 enterPinColumn.visible = false;
                 enterPasswordColumn.visible = true;
+                waitRegistrationColumn.visible = false;
+                break;
+            case TelegramAPI.WaitRegistration:
+                initializationPage.loading = false;
+                enterPinColumn.visible = false;
+                enterPasswordColumn.visible = false;
+                waitRegistrationColumn.visible = true;
                 break;
             case TelegramAPI.AuthorizationReady:
                 initializationPage.loading = false;
@@ -70,273 +94,348 @@ Page {
             default:
                 // Nothing ;)
             }
+            initializationPage.authorizationStateData = authorizationStateData;
         }
     }
 
-    Column {
-        y: ( parent.height - ( errorInfoLabel.height + fernschreiberErrorImage.height + errorOkButton.height + ( 3 * Theme.paddingSmall ) ) ) / 2
-        width: parent.width
-        id: pinErrorColumn
-        spacing: Theme.paddingSmall
-
-        Behavior on opacity { NumberAnimation {} }
-        opacity: visible ? 1 : 0
-        visible: false
-
-        Image {
-            id: fernschreiberErrorImage
-            source: "../../images/fernschreiber.png"
-            anchors {
-                horizontalCenter: parent.horizontalCenter
-            }
-
-            fillMode: Image.PreserveAspectFit
-            asynchronous: true
-            width: 1/2 * parent.width
-        }
-
-        InfoLabel {
-            id: errorInfoLabel
-            font.pixelSize: Theme.fontSizeLarge
-            text: ""
-        }
-
-        Button {
-            id: errorOkButton
-            text: qsTr("OK")
-            anchors {
-                horizontalCenter: parent.horizontalCenter
-            }
-            onClicked: {
-                pinErrorColumn.visible = false;
-                welcomeFlickable.visible = true;
-            }
-        }
-    }
-
-    Column {
-        y: ( parent.height - ( fernschreiberPasswordImage.height + enterPasswordLabel.height + enterPasswordField.height + enterPasswordButton.height + ( 3 * Theme.paddingSmall ) ) ) / 2
-        width: parent.width
-        id: enterPasswordColumn
-        spacing: Theme.paddingSmall
-
-        Behavior on opacity { NumberAnimation {} }
-        opacity: visible ? true : false
-        visible: false
-
-        Image {
-            id: fernschreiberPasswordImage
-            source: "../../images/fernschreiber.png"
-            anchors {
-                horizontalCenter: parent.horizontalCenter
-            }
-
-            fillMode: Image.PreserveAspectFit
-            asynchronous: true
-            width: 1/2 * parent.width
-        }
-
-        InfoLabel {
-            id: enterPasswordLabel
-            font.pixelSize: Theme.fontSizeLarge
-            text: qsTr("Please enter your password:")
-        }
-
-        PasswordField {
-            id: enterPasswordField
-            anchors {
-                horizontalCenter: parent.horizontalCenter
-            }
-            font.pixelSize: Theme.fontSizeLarge
-            width: parent.width - 2 * Theme.horizontalPageMargin
-            horizontalAlignment: TextInput.AlignHCenter
-        }
-
-        Button {
-            id: enterPasswordButton
-            text: qsTr("OK")
-            anchors {
-                horizontalCenter: parent.horizontalCenter
-            }
-            onClicked: {
-                initializationPage.loading = true;
-                enterPasswordColumn.visible = false;
-                tdLibWrapper.setAuthenticationPassword(enterPasswordField.text);
-            }
-        }
-    }
-
-    Column {
-        y: ( parent.height - ( fernschreiberPinImage.height + enterPinLabel.height + enterPinField.height + enterPinButton.height + ( 3 * Theme.paddingSmall ) ) ) / 2
-        width: parent.width
-        id: enterPinColumn
-        spacing: Theme.paddingSmall
-
-        Behavior on opacity { NumberAnimation {} }
-        opacity: visible ? true : false
-        visible: false
-
-        Image {
-            id: fernschreiberPinImage
-            source: "../../images/fernschreiber.png"
-            anchors {
-                horizontalCenter: parent.horizontalCenter
-            }
-
-            fillMode: Image.PreserveAspectFit
-            asynchronous: true
-            width: 1/2 * parent.width
-        }
-
-        InfoLabel {
-            id: enterPinLabel
-            font.pixelSize: Theme.fontSizeLarge
-            text: qsTr("Please enter the code that you received:")
-        }
-
-        TextField {
-            id: enterPinField
-            anchors {
-                horizontalCenter: parent.horizontalCenter
-            }
-            inputMethodHints: Qt.ImhDigitsOnly
-            font.pixelSize: Theme.fontSizeExtraLarge
-            width: parent.width - 4 * Theme.paddingLarge
-            horizontalAlignment: TextInput.AlignHCenter
-        }
-
-        Button {
-            id: enterPinButton
-            text: qsTr("OK")
-            anchors {
-                horizontalCenter: parent.horizontalCenter
-            }
-            onClicked: {
-                initializationPage.loading = true;
-                enterPinColumn.visible = false;
-                tdLibWrapper.setAuthenticationCode(enterPinField.text);
-            }
-        }
-    }
-
-    Column {
-        y: ( parent.height - ( fernschreiberLinkingErrorImage.height + linkingErrorInfoLabel.height + errorOkButton.height + ( 3 * Theme.paddingSmall ) ) ) / 2
-        width: parent.width
-        id: linkingErrorColumn
-        spacing: Theme.paddingSmall
-
-        Behavior on opacity { NumberAnimation {} }
-        opacity: visible ? true : false
-        visible: false
-
-        Image {
-            id: fernschreiberLinkingErrorImage
-            source: "../../images/fernschreiber.png"
-            anchors {
-                horizontalCenter: parent.horizontalCenter
-            }
-
-            fillMode: Image.PreserveAspectFit
-            asynchronous: true
-            width: 1/2 * parent.width
-        }
-
-        InfoLabel {
-            id: linkingErrorInfoLabel
-            font.pixelSize: Theme.fontSizeLarge
-            text: qsTr("Unable to authenticate you with the entered code.")
-        }
-
-        Button {
-            id: enterPinAgainButton
-            text: qsTr("Enter code again")
-            anchors {
-                horizontalCenter: parent.horizontalCenter
-            }
-            onClicked: {
-                linkingErrorColumn.visible = false;
-                enterPinColumn.visible = true;
-            }
-        }
-
-        Button {
-            id: restartAuthenticationButton
-            text: qsTr("Restart authentication")
-            anchors {
-                horizontalCenter: parent.horizontalCenter
-            }
-            onClicked: {
-                linkingErrorColumn.visible = false;
-                welcomeFlickable.visible = true;
-            }
-        }
-    }
 
     SilicaFlickable {
         id: welcomeFlickable
-        contentHeight: welcomeColumn.height
-        Behavior on opacity { NumberAnimation {} }
+        contentHeight: content.height
+        Behavior on contentHeight { NumberAnimation {} }
         anchors.fill: parent
-        opacity: visible ? 1 : 0
 
         Column {
-            id: welcomeColumn
+            id: content
             width: parent.width
-            spacing: Theme.paddingSmall
+            spacing: Theme.paddingLarge
 
             PageHeader {
+                id: pageHeader
                 title: qsTr("Welcome to Fernschreiber!")
             }
 
             Image {
-                id: fernschreiberImage
-                source: "../../images/fernschreiber.png"
+                source: "../../images/fernschreiber.svg"
                 anchors {
                     horizontalCenter: parent.horizontalCenter
                 }
-
+                sourceSize {
+                    width: width
+                    height: height
+                }
                 fillMode: Image.PreserveAspectFit
                 asynchronous: true
-                width: 1/2 * parent.width
+                width: Math.min(2 * Theme.itemSizeHuge, Math.min(Screen.width, Screen.height) / 2)
+                height: width
             }
 
-            Label {
-                id: enterPhoneNumberLabel
-                wrapMode: Text.Wrap
-                x: Theme.horizontalPageMargin
-                width: parent.width - ( 2 * Theme.horizontalPageMargin )
-                horizontalAlignment: Text.AlignHCenter
-                text: qsTr("Please enter your phone number to continue.")
-                font.pixelSize: Theme.fontSizeMedium
-                anchors {
-                    horizontalCenter: parent.horizontalCenter
-                }
+            BusyLabel {
+                text: qsTr("Loading...")
+                running: initializationPage.loading
+                Behavior on opacity { FadeAnimation {} }
+                visible: opacity > 0
             }
 
-            TextField {
-                id: phoneNumberTextField
-                placeholderText: "Use the international format, e.g. +4912342424242"
-                inputMethodHints: Qt.ImhDialableCharactersOnly
-                labelVisible: false
+            Column {
+                id: welcomeColumn
                 width: parent.width
+                spacing: Theme.paddingLarge
+
+                Behavior on opacity { FadeAnimation {} }
+                opacity: visible ? 1 : 0
+
+                InfoLabel {
+                    text: qsTr("Please enter your phone number to continue.")
+                }
+
+                TextField {
+                    id: phoneNumberTextField
+                    placeholderText: qsTr("Use the international format, e.g. %1").arg("+4912342424242")
+                    inputMethodHints: Qt.ImhDialableCharactersOnly
+                    labelVisible: false
+                    width: parent.width
+                    readonly property bool validInput: text.match(/\+[1-9][0-9]{4,}/g)
+                    EnterKey.iconSource: "image://theme/icon-m-enter-next"
+                    EnterKey.enabled: validInput
+                    EnterKey.onClicked: {
+                        validator = filledValidator
+                        if(acceptableInput) {
+                            continueWithPhoneNumberButton.focus = true
+                            continueWithPhoneNumberButton.enter()
+                        }
+                    }
+                }
+
+                Button {
+                    id: continueWithPhoneNumberButton
+                    text: qsTr("Continue")
+                    anchors {
+                        horizontalCenter: parent.horizontalCenter
+                    }
+                    enabled: phoneNumberTextField.validInput
+                    onClicked: enter()
+                    function enter() {
+                        initializationPage.loading = true;
+                        welcomeColumn.visible = false;
+                        tdLibWrapper.setAuthenticationPhoneNumber(phoneNumberTextField.text);
+                    }
+                }
             }
 
-            Button {
-                id: continueWithPhoneNumberButton
-                text: qsTr("Continue")
-                anchors {
-                    horizontalCenter: parent.horizontalCenter
+            Column {
+                id: pinErrorColumn
+                width: parent.width
+                spacing: Theme.paddingLarge
+
+                Behavior on opacity { FadeAnimation {} }
+                opacity: visible ? 1 : 0
+                visible: false
+
+                InfoLabel {
+                    id: errorInfoLabel
+                    font.pixelSize: Theme.fontSizeLarge
+                    text: ""
                 }
-                enabled: phoneNumberTextField.text.match(/\+[1-9][0-9]{4,}/g)
-                onClicked: {
-                    initializationPage.loading = true;
-                    welcomeFlickable.visible = false;
-                    tdLibWrapper.setAuthenticationPhoneNumber(phoneNumberTextField.text);
+
+                Button {
+                    text: qsTr("OK")
+                    anchors {
+                        horizontalCenter: parent.horizontalCenter
+                    }
+                    onClicked: {
+                        pinErrorColumn.visible = false;
+                        welcomeColumn.visible = true;
+                    }
                 }
             }
 
+            Column {
+                id: enterPasswordColumn
+                width: parent.width
+                spacing: Theme.paddingLarge
+
+                Behavior on opacity { FadeAnimation {} }
+                opacity: visible ? 1.0 : 0.0
+                visible: false
+
+                InfoLabel {
+                    font.pixelSize: Theme.fontSizeLarge
+                    text: qsTr("Please enter your password:")
+                }
+
+                PasswordField {
+                    id: enterPasswordField
+                    anchors {
+                        horizontalCenter: parent.horizontalCenter
+                    }
+                    font.pixelSize: Theme.fontSizeLarge
+                    width: parent.width - 2 * Theme.horizontalPageMargin
+                    horizontalAlignment: TextInput.AlignHCenter
+                }
+
+                Button {
+                    text: qsTr("OK")
+                    anchors {
+                        horizontalCenter: parent.horizontalCenter
+                    }
+                    onClicked: {
+                        initializationPage.loading = true;
+                        enterPasswordColumn.visible = false;
+                        tdLibWrapper.setAuthenticationPassword(enterPasswordField.text);
+                    }
+                }
+            }
+
+            Column {
+                id: enterPinColumn
+                width: parent.width
+                spacing: Theme.paddingLarge
+
+                Behavior on opacity { FadeAnimation {} }
+                opacity: visible ? 1.0 : 0.0
+                visible: false
+
+                InfoLabel {
+                    font.pixelSize: Theme.fontSizeLarge
+                    text: qsTr("Please enter the code that you received:")
+                }
+
+                TextField {
+                    id: enterPinField
+                    anchors {
+                        horizontalCenter: parent.horizontalCenter
+                    }
+                    inputMethodHints: Qt.ImhDigitsOnly
+                    font.pixelSize: Theme.fontSizeExtraLarge
+                    width: parent.width - 4 * Theme.paddingLarge
+                    horizontalAlignment: TextInput.AlignHCenter
+                    EnterKey.iconSource: "image://theme/icon-m-enter-next"
+                    EnterKey.enabled: text.length > 0
+                    EnterKey.onClicked: enterPinButton.enter()
+                }
+
+                Button {
+                    id: enterPinButton
+                    text: qsTr("OK")
+                    anchors {
+                        horizontalCenter: parent.horizontalCenter
+                    }
+                    onClicked: enter()
+                    function enter() {
+                        initializationPage.loading = true;
+                        enterPinColumn.visible = false;
+                        tdLibWrapper.setAuthenticationCode(enterPinField.text);
+                    }
+                }
+            }
+
+            Column {
+                id: linkingErrorColumn
+                width: parent.width
+                spacing: Theme.paddingLarge
+
+                Behavior on opacity { FadeAnimation {} }
+                opacity: visible ? 1.0 : 0.0
+                visible: false
+
+                InfoLabel {
+                    font.pixelSize: Theme.fontSizeLarge
+                    text: qsTr("Unable to authenticate you with the entered code.")
+                }
+
+                Button {
+                    text: qsTr("Enter code again")
+                    anchors {
+                        horizontalCenter: parent.horizontalCenter
+                    }
+                    onClicked: {
+                        linkingErrorColumn.visible = false;
+                        enterPinColumn.visible = true;
+                    }
+                }
+
+                Button {
+                    text: qsTr("Restart authentication")
+                    anchors {
+                        horizontalCenter: parent.horizontalCenter
+                    }
+                    onClicked: {
+                        linkingErrorColumn.visible = false;
+                        welcomeColumn.visible = true;
+                    }
+                }
+            }
+
+            Column {
+                id: waitRegistrationColumn
+                width: parent.width
+                spacing: Theme.paddingLarge
+
+                Behavior on opacity { FadeAnimation {} }
+                opacity: visible ? 1.0 : 0.0
+                visible: false
+
+                InfoLabel {
+                    id: waitRegistrationInfoLabel
+                    property bool acknowledged
+                    font.pixelSize: Theme.fontSizeExtraSmall
+                    textFormat: Text.StyledText
+                    horizontalAlignment: Text.AlignLeft
+                    linkColor: Theme.primaryColor
+                    property var stateText: initializationPage.authorizationStateData.authorization_state && initializationPage.authorizationStateData.authorization_state.terms_of_service ?
+                                                   initializationPage.authorizationStateData.authorization_state.terms_of_service.text :
+                                                   null
+                    visible: !!stateText && !acknowledged
+                    text: {
+                        if(!stateText) {
+                            return '';
+                        }
+                        var entities = stateText.entities;
+                        if(entities && entities.length > 0 && entities[0]["type"]["@type"] === "textEntityTypeTextUrl") { //we just use the first entity for now.
+                            var offset = entities[0].offset;
+                            var length = entities[0].length;
+                            return (stateText.text.slice(0,entities[0].offset)
+                                    + "<a href=\""+entities[0]["type"]["url"]+"\">"
+                                    + stateText.text.slice(entities[0].offset, entities[0].offset + entities[0].length)
+                                    + '</a>'
+                                    + stateText.text.slice(entities[0].offset + entities[0].length)).replace(/\n/gm, "<br>");
+                        }
+                        return stateText.text.replace(/\n/gm, "<br>");
+                    }
+                }
+
+                Button {
+                    visible: waitRegistrationInfoLabel.visible
+                    text: qsTr("OK")
+                    anchors {
+                        horizontalCenter: parent.horizontalCenter
+                    }
+                    onClicked: {
+                        waitRegistrationInfoLabel.acknowledged = true;
+                        userFirstNameTextField.focus = true
+                    }
+                }
+                RegExpValidator {
+                    id: filledValidator
+                    regExp: /.+/
+                }
+                TextField {
+                    id: userFirstNameTextField
+                    visible: !waitRegistrationInfoLabel.visible
+                    opacity: visible ? 1.0 : 0.0
+                    Behavior on opacity { FadeAnimation {} }
+                    placeholderText: qsTr("Enter your First Name")
+                    labelVisible: false
+                    width: parent.width
+                    EnterKey.iconSource: !!text ? "image://theme/icon-m-enter-next" : "image://theme/icon-m-text-input"
+                    EnterKey.onClicked: {
+                        validator = filledValidator
+                        if(acceptableInput) userLastNameTextField.focus = true;
+                    }
+                }
+                TextField {
+                    id: userLastNameTextField
+                    visible: !waitRegistrationInfoLabel.visible
+                    opacity: visible ? 1.0 : 0.0
+                    Behavior on opacity { FadeAnimation {} }
+                    placeholderText: qsTr("Enter your Last Name")
+                    labelVisible: false
+                    width: parent.width
+                    EnterKey.iconSource: !!text ? "image://theme/icon-m-enter-accept" : "image://theme/icon-m-text-input"
+                    EnterKey.onClicked: {
+                        validator = filledValidator
+                        if(acceptableInput) registerUserButton.onClicked(null);
+                    }
+                }
+                Button {
+                    id: registerUserButton
+                    visible: !waitRegistrationInfoLabel.visible
+                    opacity: visible ? 1.0 : 0.0
+                    Behavior on opacity { FadeAnimation {} }
+                    text: qsTr("Register User")
+                    anchors {
+                        horizontalCenter: parent.horizontalCenter
+                    }
+                    onClicked: {
+                        userFirstNameTextField.validator = filledValidator
+                        userLastNameTextField.validator = filledValidator
+                        if(userFirstNameTextField.acceptableInput && userLastNameTextField.acceptableInput) {
+                            tdLibWrapper.registerUser(userFirstNameTextField.text, userLastNameTextField.text);
+                        } else if(!userFirstNameTextField.acceptableInput) {
+                            userFirstNameTextField.focus = true;
+                        } else {
+                            userLastNameTextField.focus = true;
+                        }
+
+                    }
+                }
+            }
+
+            Item {
+                width: 1
+                height: Theme.paddingLarge
+            }
         }
     }
-
 }
-
