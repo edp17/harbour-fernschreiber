@@ -132,17 +132,17 @@
     <message>
         <source>Info</source>
         <comment>group or user infotext header</comment>
-        <translation>csoport vagy felhasználó információ fejléc</translation>
+        <translation>Infó</translation>
     </message>
     <message>
         <source>Phone Number</source>
         <comment>user phone number header</comment>
-        <translation>felhasználó telefonszám fejléc</translation>
+        <translation>Telefonszám</translation>
     </message>
     <message>
         <source>Invite Link</source>
         <comment>header</comment>
-        <translation>fejléc</translation>
+        <translation>Meghívó</translation>
     </message>
     <message>
         <source>There is no information text available, yet.</source>
@@ -151,7 +151,7 @@
     <message>
         <source>Chat Title</source>
         <comment>group title header</comment>
-        <translation>csoport cím fejléc</translation>
+        <translation>Csevegés cím</translation>
     </message>
     <message>
         <source>Enter 1-128 characters</source>
@@ -171,7 +171,7 @@
     <message>
         <source>Loading common chats…</source>
         <comment>chats you have in common with a user</comment>
-        <translation>a felhasználval közös csevegések</translation>
+        <translation>Közös csevegések betöltése...</translation>
     </message>
     <message>
         <source>Unknown</source>
@@ -180,12 +180,12 @@
     <message>
         <source>Groups</source>
         <comment>Button: groups in common (short)</comment>
-        <translation>Gomb: közös csoport (rövid)</translation>
+        <translation>Csoportok</translation>
     </message>
     <message>
         <source>Members</source>
         <comment>Button: Group Members</comment>
-        <translation>Gomb: Csoporttagok</translation>
+        <translation>Tagok</translation>
     </message>
     <message>
         <source>Loading group members…</source>
@@ -213,7 +213,7 @@
     <message>
         <source>Settings</source>
         <comment>Button: Chat Settings</comment>
-        <translation>Gomb: Csevegés Beállítások</translation>
+        <translation>Beállítások</translation>
     </message>
 </context>
 <context>
@@ -320,7 +320,7 @@
     <message numerus="yes">
         <source>%n Messages deleted</source>
         <translation>
-            <numerusform>%n Üzenet törölve</numerusform>
+            <numerusform>%n üzenet törölve</numerusform>
         </translation>
     </message>
     <message numerus="yes">
